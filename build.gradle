@@ -46,10 +46,6 @@ kotlin {
 	}
 }
 
-tasks.named('test') {
-	useJUnitPlatform()
-}
-
 jooq {
 	configuration {
 		jdbc {
@@ -66,7 +62,7 @@ jooq {
 			}
 			target {
 				packageName = 'com.example.jooq'
-				directory = "$buildDir/generated-src/jooq"
+				directory = "src/main/generated"
 			}
 		}
 	}
@@ -75,21 +71,15 @@ jooq {
 sourceSets {
 	main {
 		java {
-			srcDir "$buildDir/generated-src/jooq"
+			srcDir "src/main/generated"
 		}
 	}
 }
 
-test {
-	useJUnitPlatform()
-}
-
-tasks.named("compileKotlin") {
-	dependsOn(tasks.named("jooqCodegen"))
-}
-
-tasks.named("compileJava") {
-	dependsOn(tasks.named("jooqCodegen"))
+tasks.named('test') {
+	useJUnitPlatform {
+		excludeTags 'integration'
+	}
 }
 
 tasks.withType(Jar).configureEach {
@@ -98,4 +88,11 @@ tasks.withType(Jar).configureEach {
 
 tasks.named('bootJar') {
 	duplicatesStrategy = DuplicatesStrategy.EXCLUDE
+}
+
+tasks.register('integrationTest', Test) {
+	useJUnitPlatform {
+		includeTags 'integration'
+	}
+	shouldRunAfter tasks.test
 }
