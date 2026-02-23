@@ -10,6 +10,7 @@ import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
+import org.mockito.Mockito.times
 import org.mockito.kotlin.inOrder
 import org.mockito.kotlin.mock
 import org.mockito.kotlin.verify
@@ -100,6 +101,41 @@ class BookServiceTest {
         order.verify(bookRepository).insertBookAuthorRelation(1L, 10L)
         order.verify(bookRepository).insertBookAuthorRelation(1L, 20L)
         order.verifyNoMoreInteractions()
+        verifyNoMoreInteractions(authorService)
+    }
+
+    /**
+     * createBook_03
+     * authorIds に重複があっても1回ずつしか関連登録されないこと
+     */
+    @Test
+    fun createBook_03() {
+        // 準備
+        val req = CreateBookRequestDto(
+            title = "Book",
+            price = 1000,
+            publicationStatus = 1,
+            authorIds = listOf(10L, 10L),
+            authors = emptyList()
+        )
+        whenever(
+            bookRepository.insertBook(req.title, req.price, req.publicationStatus)
+        ).thenReturn(
+            Book(
+                bookId = 1L,
+                title = req.title,
+                price = req.price,
+                publicationStatus = req.publicationStatus
+            )
+        )
+
+        // 実行
+        sut.createBook(req)
+
+        // 検証
+        verify(bookRepository).insertBook(req.title, req.price, req.publicationStatus)
+        verify(bookRepository).insertBookAuthorRelation(1L, 10L)
+        verify(bookRepository, times(1)).insertBookAuthorRelation(1L, 10L)
         verifyNoMoreInteractions(authorService)
     }
 

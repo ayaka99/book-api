@@ -153,17 +153,15 @@ class BookService(
         existingAuthorIds: List<Long>?,
         newAuthors: List<CreateAuthorRequestDto>?
     ): List<Long> {
-        val ids = mutableListOf<Long>()
-        ids.addAll(existingAuthorIds ?: emptyList())
 
-        val newAuthorIds = (newAuthors ?: emptyList()).map { createAuthorRequestDto ->
+        val newAuthorIds = newAuthors.orEmpty().map { createAuthorRequestDto ->
             authorService.createAuthor(
                 name = createAuthorRequestDto.name,
                 birthDate = createAuthorRequestDto.birthDate
             ).authorId
         }
-        ids.addAll(newAuthorIds)
 
-        return ids
+        return (existingAuthorIds.orEmpty() + newAuthorIds)
+            .distinct()
     }
 }
