@@ -9,15 +9,30 @@ import org.springframework.stereotype.Service
 import org.springframework.transaction.annotation.Transactional
 
 /**
- * 書籍と著者の紐付けを管理するサービス。
+ * 書籍の登録・更新および著者との紐付け管理を行うサービス。
  *
- * 更新時は中間テーブルを全削除して再構築する仕様。
+ * 業務ルール:
+ * - 価格は0以上
+ * - 書籍には著者が最低1人必要
+ * - publicationStatusは 0/1 のみ許可
+ * - 出版済（1）→未出版（0）への状態遷移は禁止
+ *
+ * 書籍更新時は既存の著者紐付けを一度削除し、指定内容で再構築する。
  */
 @Service
 class BookService(
     private val bookRepository: BookRepository,
     private val authorService: AuthorService
 ) {
+    /**
+     * 書籍を新規作成し、指定された著者と紐付ける。
+     *
+     * 著者指定は以下を組み合わせ可能:
+     * - authorIds: 既存著者のIDリスト
+     * - authors: 新規著者の入力情報
+     *
+     * @throws IllegalArgumentException 入力が業務ルールに違反する場合
+     */
     @Transactional
     fun createBook(createBookRequestDto: CreateBookRequestDto): Long {
 
@@ -65,11 +80,27 @@ class BookService(
         return bookId
     }
 
+    /**
+     * 指定著者に紐づく書籍一覧を取得する。
+     *
+     * 読み取り専用トランザクションで実行する。
+     */
     @Transactional(readOnly = true)
     fun getBooksByAuthorId(authorId: Long): List<Book> {
         return bookRepository.findBooksByAuthorId(authorId)
     }
 
+    /**
+     * 書籍を更新し、著者紐付けを指定内容で置換する。
+     *
+     * トランザクション内で以下を一括実行する:
+     * - 書籍本体の更新
+     * - 新規著者の作成（指定がある場合）
+     * - 中間テーブルの置換（既存削除→再登録）
+     *
+     * @throws NotFoundException 指定IDの書籍が存在しない場合
+     * @throws IllegalArgumentException 入力が業務ルールに違反する場合
+     */
     @Transactional
     fun updateBookWithAuthors(bookId: Long, updateBookRequestDto: UpdateBookRequestDto): Book {
 
