@@ -83,4 +83,17 @@ class ApiExceptionHandlerIT @Autowired constructor(
         )
             .andExpect(status().isBadRequest)
     }
+
+    /**
+     * getAuthorBooks_404
+     * GET/authors/{id}/books で存在しないauthorIdを指定した場合に404を返す（NotFoundException → 404 変換の確認）
+     */
+    @Test
+    fun getAuthorBooks_404() {
+        mockMvc.perform(
+            get("/authors/9999/books")
+                .contentType(MediaType.APPLICATION_JSON)
+        )
+            .andExpect(status().isNotFound)
+    }
 }

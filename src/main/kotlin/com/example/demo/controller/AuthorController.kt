@@ -51,13 +51,16 @@ class AuthorController(
 
     @GetMapping("/{authorId}/books")
     fun getBooksByAuthorId(@PathVariable authorId: Long): List<AuthorBookResponseDto> {
-        val books = bookService.getBooksByAuthorId(authorId)
-        return books.map { book ->
+        // 著者が存在しない場合は 404
+        authorService.getAuthor(authorId)
+            ?: throw NotFoundException("author not found: id=$authorId")
+
+        return bookService.getBooksByAuthorId(authorId).map { authorBookResponseDto ->
             AuthorBookResponseDto(
-                bookId = book.bookId,
-                title = book.title,
-                price = book.price,
-                publicationStatus = book.publicationStatus
+                bookId = authorBookResponseDto.bookId,
+                title = authorBookResponseDto.title,
+                price = authorBookResponseDto.price,
+                publicationStatus = authorBookResponseDto.publicationStatus
             )
         }
     }
