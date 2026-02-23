@@ -140,6 +140,50 @@ class BookServiceTest {
     }
 
     /**
+     * createBook_04
+     * 価格が0未満の場合 IllegalArgumentException
+     */
+    @Test
+    fun createBook_04() {
+        // 準備
+        val req = CreateBookRequestDto(
+            title = "Book",
+            price = -1,
+            publicationStatus = 0,
+            authorIds = listOf(10L),
+            authors = emptyList()
+        )
+
+        // 実行、検証
+        assertThrows(IllegalArgumentException::class.java) {
+            sut.createBook(req)
+        }
+        verifyNoMoreInteractions(authorService)
+    }
+
+    /**
+     * createBook_05
+     * publicationStatus が 0/1 以外の場合 IllegalArgumentException
+     */
+    @Test
+    fun createBook_05() {
+        // 準備
+        val req = CreateBookRequestDto(
+            title = "Book",
+            price = 1000,
+            publicationStatus = 2,
+            authorIds = listOf(10L),
+            authors = emptyList()
+        )
+
+        // 実行、検証
+        assertThrows(IllegalArgumentException::class.java) {
+            sut.createBook(req)
+        }
+        verifyNoMoreInteractions(authorService)
+    }
+
+    /**
      *  updateBookWithAuthors_01
      *  既存著者のみ指定の場合
      *  update → relations全削除 → relations再insert
@@ -373,5 +417,27 @@ class BookServiceTest {
         }
 
         verifyNoMoreInteractions(authorService)
+    }
+
+    /**
+     * updateBookWithAuthors_07
+     * 存在しない書籍更新時 NotFoundException
+     */
+    @Test
+    fun updateBookWithAuthors_07() {
+        val bookId = 999L
+        whenever(bookRepository.findBookByBookId(bookId)).thenReturn(null)
+
+        val req = UpdateBookRequestDto(
+            title = "New",
+            price = 1000,
+            publicationStatus = 0,
+            authorIds = listOf(10L),
+            authors = null
+        )
+
+        assertThrows(RuntimeException::class.java) {
+            sut.updateBookWithAuthors(bookId, req)
+        }
     }
 }
