@@ -1,6 +1,7 @@
 package com.example.demo.service
 
 import com.example.demo.domain.Book
+import com.example.demo.dto.CreateAuthorRequestDto
 import com.example.demo.dto.CreateBookRequestDto
 import com.example.demo.dto.UpdateBookRequestDto
 import com.example.demo.error.NotFoundException
@@ -24,6 +25,13 @@ class BookService(
     private val bookRepository: BookRepository,
     private val authorService: AuthorService
 ) {
+
+    companion object {
+        private const val UNPUBLISHED = 0
+        private const val PUBLISHED = 1
+        private val ALLOWED_PUBLICATION_STATUS = setOf(UNPUBLISHED, PUBLISHED)
+    }
+
     /**
      * 書籍を新規作成し、指定された著者と紐付ける。
      *
@@ -36,21 +44,12 @@ class BookService(
     @Transactional
     fun createBook(createBookRequestDto: CreateBookRequestDto): Long {
 
-        if (createBookRequestDto.publicationStatus !in setOf(0, 1)) {
-            throw IllegalArgumentException("publicationStatus must be 0 or 1")
-        }
-
-        val totalAuthors =
-            (createBookRequestDto.authorIds?.size ?: 0) +
-                    (createBookRequestDto.authors?.size ?: 0)
-
-        if (totalAuthors == 0) {
-            throw IllegalArgumentException("at least one author is required")
-        }
-
-        if (createBookRequestDto.price < 0) {
-            throw IllegalArgumentException("price must be 0 or greater")
-        }
+        validateBookInput(
+            price = createBookRequestDto.price,
+            publicationStatus = createBookRequestDto.publicationStatus,
+            authorIds = createBookRequestDto.authorIds,
+            authorsCount = createBookRequestDto.authors?.size ?: 0
+        )
 
         val book = bookRepository.insertBook(
             title = createBookRequestDto.title,
@@ -59,21 +58,12 @@ class BookService(
         )
         val bookId = book.bookId
 
-        // 既存著者ID（authorIds）
-        val existingAuthorIds: List<Long> = createBookRequestDto.authorIds ?: emptyList()
+        val allAuthorIds = resolveAuthorIds(
+            existingAuthorIds = createBookRequestDto.authorIds,
+            newAuthors = createBookRequestDto.authors
+        )
 
-        // 新規著者（authors）→ 作成してID化
-        val newAuthorIds: List<Long> = (createBookRequestDto.authors ?: emptyList())
-            .map { dto ->
-                authorService.createAuthor(
-                    name = dto.name,
-                    birthDate = dto.birthDate
-                ).authorId
-            }
-
-        val allAuthorIds: List<Long> = existingAuthorIds + newAuthorIds
-
-        for (authorId in allAuthorIds) {
+        allAuthorIds.forEach { authorId ->
             bookRepository.insertBookAuthorRelation(bookId, authorId)
         }
 
@@ -104,33 +94,19 @@ class BookService(
     @Transactional
     fun updateBookWithAuthors(bookId: Long, updateBookRequestDto: UpdateBookRequestDto): Book {
 
-        if (updateBookRequestDto.publicationStatus !in setOf(0, 1)) {
-            throw IllegalArgumentException("publicationStatus must be 0 or 1")
-        }
-
-        val totalAuthors =
-            (updateBookRequestDto.authorIds?.size ?: 0) +
-                    (updateBookRequestDto.authors?.size ?: 0)
-
-        if (totalAuthors == 0) {
-            throw IllegalArgumentException("at least one author is required")
-        }
+        validateBookInput(
+            price = updateBookRequestDto.price,
+            publicationStatus = updateBookRequestDto.publicationStatus,
+            authorIds = updateBookRequestDto.authorIds,
+            authorsCount = updateBookRequestDto.authors?.size ?: 0
+        )
 
         val current = bookRepository.findBookByBookId(bookId)
             ?: throw NotFoundException("book not found: $bookId")
 
-        val currentStatus = current.publicationStatus
-        val newStatus = updateBookRequestDto.publicationStatus
-
-        val UNPUBLISHED = 0
-        val PUBLISHED = 1
-
-        if (currentStatus == PUBLISHED && newStatus == UNPUBLISHED) {
+        // 出版済（1）→未出版（0）への状態遷移は禁止
+        if (current.publicationStatus == PUBLISHED && updateBookRequestDto.publicationStatus == UNPUBLISHED) {
             throw IllegalArgumentException("published book cannot be changed to unpublished")
-        }
-
-        if (updateBookRequestDto.price < 0) {
-            throw IllegalArgumentException("price must be 0 or greater")
         }
 
         val updatedBook = bookRepository.updateBook(
@@ -140,27 +116,54 @@ class BookService(
             publicationStatus = updateBookRequestDto.publicationStatus
         )
 
-        // 既存の紐付けを全削除
+        // 既存の紐付けを全削除し、指定内容で再構築
         bookRepository.deleteBookAuthorRelations(bookId)
 
-        // 既存著者ID
-        val existingAuthorIds: List<Long> = updateBookRequestDto.authorIds ?: emptyList()
+        val allAuthorIds = resolveAuthorIds(
+            existingAuthorIds = updateBookRequestDto.authorIds,
+            newAuthors = updateBookRequestDto.authors
+        )
 
-        // 新規著者を作成してID化
-        val newAuthorIds: List<Long> = (updateBookRequestDto.authors ?: emptyList())
-            .map { createAuthorRequestDto ->
-                authorService.createAuthor(
-                    name = createAuthorRequestDto.name,
-                    birthDate = createAuthorRequestDto.birthDate
-                ).authorId
-            }
-
-        val allAuthorIds: List<Long> = existingAuthorIds + newAuthorIds
-
-        for (authorId in allAuthorIds) {
+        allAuthorIds.forEach { authorId ->
             bookRepository.insertBookAuthorRelation(bookId, authorId)
         }
 
         return updatedBook
+    }
+
+    private fun validateBookInput(
+        price: Int,
+        publicationStatus: Int,
+        authorIds: List<Long>?,
+        authorsCount: Int
+    ) {
+        if (publicationStatus !in ALLOWED_PUBLICATION_STATUS) {
+            throw IllegalArgumentException("publicationStatus must be 0 or 1")
+        }
+        if (price < 0) {
+            throw IllegalArgumentException("price must be 0 or greater")
+        }
+        val totalAuthors = (authorIds?.size ?: 0) + authorsCount
+        if (totalAuthors == 0) {
+            throw IllegalArgumentException("at least one author is required")
+        }
+    }
+
+    private fun resolveAuthorIds(
+        existingAuthorIds: List<Long>?,
+        newAuthors: List<CreateAuthorRequestDto>?
+    ): List<Long> {
+        val ids = mutableListOf<Long>()
+        ids.addAll(existingAuthorIds ?: emptyList())
+
+        val newAuthorIds = (newAuthors ?: emptyList()).map { createAuthorRequestDto ->
+            authorService.createAuthor(
+                name = createAuthorRequestDto.name,
+                birthDate = createAuthorRequestDto.birthDate
+            ).authorId
+        }
+        ids.addAll(newAuthorIds)
+
+        return ids
     }
 }
