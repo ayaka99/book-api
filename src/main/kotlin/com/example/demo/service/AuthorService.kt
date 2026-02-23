@@ -32,6 +32,7 @@ class AuthorService(
         return authorRepository.findAll(limit, offset)
     }
 
+    @Transactional
     fun updateAuthor(authorId: Long, name: String, birthDate: LocalDate?): Author {
         if (birthDate != null && birthDate.isAfter(LocalDate.now())) {
             throw IllegalArgumentException("birth_date must be today or earlier")

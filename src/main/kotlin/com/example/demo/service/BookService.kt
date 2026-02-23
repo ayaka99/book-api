@@ -21,6 +21,10 @@ class BookService(
     @Transactional
     fun createBook(createBookRequestDto: CreateBookRequestDto): Long {
 
+        if (createBookRequestDto.publicationStatus !in setOf(0, 1)) {
+            throw IllegalArgumentException("publicationStatus must be 0 or 1")
+        }
+
         val totalAuthors =
             (createBookRequestDto.authorIds?.size ?: 0) +
                     (createBookRequestDto.authors?.size ?: 0)
@@ -61,12 +65,17 @@ class BookService(
         return bookId
     }
 
+    @Transactional(readOnly = true)
     fun getBooksByAuthorId(authorId: Long): List<Book> {
         return bookRepository.findBooksByAuthorId(authorId)
     }
 
     @Transactional
     fun updateBookWithAuthors(bookId: Long, updateBookRequestDto: UpdateBookRequestDto): Book {
+
+        if (updateBookRequestDto.publicationStatus !in setOf(0, 1)) {
+            throw IllegalArgumentException("publicationStatus must be 0 or 1")
+        }
 
         val totalAuthors =
             (updateBookRequestDto.authorIds?.size ?: 0) +
