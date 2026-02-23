@@ -262,3 +262,85 @@ docker compose up -d
 - 書籍と著者の登録
 - 書籍と著者の更新
 - 著者に紐づく書籍取得
+
+---
+
+## APIステータス仕様
+
+本APIでは以下のHTTPステータス方針とする。
+
+### 成功系
+
+- POST /authors → 201 Created
+- POST /books → 201 Created
+- PUT /authors/{id} → 200 OK
+- PUT /books/{id} → 200 OK
+- GET /authors/{id}/books → 200 OK
+
+### エラー系
+
+- 不正入力 → 400 Bad Request
+    - price < 0
+    - birthDate が未来日
+    - publicationStatus が不正
+    - 存在しない authorId 指定（FK違反）
+
+- 未存在リソース → 404 Not Found
+    - 存在しない著者IDでの書籍取得
+    - 存在しない著者更新
+    - 存在しない書籍更新
+
+例外は ControllerAdvice にて HTTP ステータスへ変換している。
+
+---
+
+## バリデーション方針
+
+### Service層で担保
+
+- price は 0 以上
+- 著者は最低1人必要
+- 出版済 → 未出版 への変更は禁止
+- birthDate は現在日以前
+- publicationStatus は 0 / 1 のみ
+
+### DB制約で担保
+
+- 外部キー制約（author_id）
+- publication_status CHECK
+- price CHECK
+- birth_date CHECK
+
+Service と DB の二層で整合性を担保している。
+
+---
+
+## テスト方針
+
+### 単体テスト
+
+Service層中心に実装。
+
+- 正常系
+- 業務バリデーション
+- 著者重複排除
+- 更新処理
+
+DB不要で実行可能。
+
+### 結合テスト
+
+ControllerAdvice を含む例外 → HTTP変換を確認。
+
+- 不正入力 → 400
+- 未存在リソース → 404
+
+Docker上のPostgreSQLを使用。
+
+---
+
+## 設計補足
+
+- authorIds に重複があっても1回のみ関連登録されるよう重複排除している
+- 書籍更新時は関連著者を再構築する
+- DTOでAPI契約を明確化
