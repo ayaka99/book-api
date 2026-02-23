@@ -90,6 +90,7 @@ class BookServiceTest {
 
         // 検証
         val order = inOrder(bookRepository)
+        order.verify(bookRepository).findBookByBookId(bookId)
         order.verify(bookRepository).updateBook(bookId, req.title, req.price, req.publicationStatus)
         order.verify(bookRepository).deleteBookAuthorRelations(bookId)
         order.verify(bookRepository).insertBookAuthorRelation(bookId, 10L)
@@ -143,6 +144,7 @@ class BookServiceTest {
 
         // 検証
         val order = inOrder(bookRepository, authorService)
+        order.verify(bookRepository).findBookByBookId(bookId)
         order.verify(bookRepository).updateBook(bookId, req.title, req.price, req.publicationStatus)
         order.verify(bookRepository).deleteBookAuthorRelations(bookId)
         order.verify(authorService).createAuthor("New Author", birth)
@@ -194,13 +196,16 @@ class BookServiceTest {
         // 実行
         sut.updateBookWithAuthors(bookId, req)
 
-        // 検証
-        val order = inOrder(bookRepository)
-        order.verify(bookRepository).updateBook(bookId, req.title, req.price, req.publicationStatus)
-        order.verify(bookRepository).deleteBookAuthorRelations(bookId)
+        // 検証（順序には依存しない。重要な呼び出しのみ検証する）
+        verify(bookRepository).findBookByBookId(bookId)
+        verify(bookRepository).updateBook(bookId, req.title, req.price, req.publicationStatus)
+        verify(bookRepository).deleteBookAuthorRelations(bookId)
+        // 既存著者との紐付け
         verify(bookRepository).insertBookAuthorRelation(bookId, 10L)
+        // 新規著者作成と紐付け
         verify(authorService).createAuthor("New Author", birth)
         verify(bookRepository).insertBookAuthorRelation(bookId, 99L)
+        verifyNoMoreInteractions(bookRepository, authorService)
     }
 
     /**
