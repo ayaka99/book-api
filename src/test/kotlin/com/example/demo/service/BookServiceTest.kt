@@ -6,6 +6,7 @@ import com.example.demo.dto.CreateAuthorRequestDto
 import com.example.demo.dto.CreateBookRequestDto
 import com.example.demo.dto.UpdateBookRequestDto
 import com.example.demo.repository.BookRepository
+import org.junit.jupiter.api.Assertions.assertEquals
 import org.junit.jupiter.api.Assertions.assertThrows
 import org.junit.jupiter.api.BeforeEach
 import org.junit.jupiter.api.Test
@@ -56,6 +57,49 @@ class BookServiceTest {
             sut.createBook(req)
         }
 
+        verifyNoMoreInteractions(authorService)
+    }
+
+    /**
+     * createBook_02
+     * 既存著者IDのみを指定して書籍を作成できること（insertBook → relation登録の確認）
+     */
+    @Test
+    fun createBook_02() {
+        // 準備
+        val req = CreateBookRequestDto(
+            title = "Book",
+            price = 1000,
+            publicationStatus = 1,
+            authorIds = listOf(10L, 20L),
+            authors = emptyList()
+        )
+        whenever(
+            bookRepository.insertBook(
+                title = req.title,
+                price = req.price,
+                publicationStatus = req.publicationStatus
+            )
+        ).thenReturn(
+            Book(
+                bookId = 1L,
+                title = req.title,
+                price = req.price,
+                publicationStatus = req.publicationStatus
+            )
+        )
+
+        // 実行
+        val result = sut.createBook(req)
+
+        // 検証
+        assertEquals(1L, result)
+
+        val order = inOrder(bookRepository)
+        order.verify(bookRepository).insertBook(req.title, req.price, req.publicationStatus)
+        order.verify(bookRepository).insertBookAuthorRelation(1L, 10L)
+        order.verify(bookRepository).insertBookAuthorRelation(1L, 20L)
+        order.verifyNoMoreInteractions()
         verifyNoMoreInteractions(authorService)
     }
 
